@@ -2,9 +2,11 @@ package com.toy;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * A basic LRU cache implementation using a Doubly Linked List and HashMap.
+ * A thread-safe LRU cache implementation using a Doubly Linked List and HashMap.
  */
 public class LruCache<K, V> {
 
@@ -12,6 +14,7 @@ public class LruCache<K, V> {
     private final Map<K, Node> map;
     private final Node head;
     private final Node tail;
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     private class Node {
         K key;
@@ -35,29 +38,49 @@ public class LruCache<K, V> {
     }
 
     public V get(K key) {
-        if (!map.containsKey(key)) {
-            return null;
+        lock.readLock().lock();
+        try {
+            if (!map.containsKey(key)) {
+                return null;
+            }
+        } finally {
+            lock.readLock().unlock();
         }
-        Node node = map.get(key);
-        remove(node);
-        addFirst(node);
-        return node.value;
+
+        // We need to write lock to move node to front
+        lock.writeLock().lock();
+        try {
+            Node node = map.get(key);
+            if (node != null) { // Double check
+                remove(node);
+                addFirst(node);
+                return node.value;
+            }
+            return null;
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     public void put(K key, V value) {
-        if (map.containsKey(key)) {
-            Node node = map.get(key);
-            node.value = value;
-            remove(node);
-            addFirst(node);
-        } else {
-            if (map.size() >= capacity) {
-                map.remove(tail.prev.key);
-                remove(tail.prev);
+        lock.writeLock().lock();
+        try {
+            if (map.containsKey(key)) {
+                Node node = map.get(key);
+                node.value = value;
+                remove(node);
+                addFirst(node);
+            } else {
+                if (map.size() >= capacity) {
+                    map.remove(tail.prev.key);
+                    remove(tail.prev);
+                }
+                Node newNode = new Node(key, value);
+                map.put(key, newNode);
+                addFirst(newNode);
             }
-            Node newNode = new Node(key, value);
-            map.put(key, newNode);
-            addFirst(newNode);
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
