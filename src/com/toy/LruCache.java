@@ -96,3 +96,4 @@ public class LruCache<K, V> {
         node.next.prev = node.prev;
     }
 }
+// Distributed Lock Hook (Future proofing)\ninterface LockTransport { void lock(); void unlock(); }
