@@ -84,6 +84,26 @@ public class LruCache<K, V> {
         }
     }
 
+        public int size() {
+        lock.readLock().lock();
+        try {
+            return map.size();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    public void clear() {
+        lock.writeLock().lock();
+        try {
+            map.clear();
+            head.next = tail;
+            tail.prev = head;
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
     private void addFirst(Node node) {
         node.next = head.next;
         node.next.prev = node;
